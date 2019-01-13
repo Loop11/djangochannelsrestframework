@@ -3,6 +3,7 @@ from enum import Enum
 from functools import partial
 from typing import Dict, Any, Type, Set, Generator
 from uuid import uuid4
+import uuid
 
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -19,7 +20,8 @@ class ObjPartial(partial):
         try:
             item = super().__getattribute__(name)
         except AttributeError:
-            return partial(getattr(self.func, name), *self.args, **self.keywords)
+            return partial(
+                getattr(self.func, name), *self.args, **self.keywords)
         return item
 
 
@@ -72,16 +74,14 @@ class BaseObserver:
 
 
 class Observer(BaseObserver):
-    def __init__(self, func, signal: Signal=None, kwargs=None):
+    def __init__(self, func, signal: Signal = None, kwargs=None):
         super().__init__(func)
         if kwargs is None:
             kwargs = {}
         self.signal = signal
         self.signal_kwargs = kwargs
         self._serializer = None
-        self.signal.connect(
-            self.handle, **self.signal_kwargs
-        )
+        self.signal.connect(self.handle, **self.signal_kwargs)
 
     def handle(self, signal, *args, **kwargs):
         message = self.serialize(signal, *args, **kwargs)
@@ -95,13 +95,9 @@ class Observer(BaseObserver):
                 yield '{}-{}'.format(self._uuid, group)
             return
         yield '{}-{}-signal-{}'.format(
-            self._uuid,
-            self.func.__name__.replace('_', '.'),
-            '.'.join(
-                arg.lower().replace('_', '.') for arg in
-                self.signal.providing_args
-            )
-        )
+            self._uuid, self.func.__name__.replace('_', '.'),
+            '.'.join(arg.lower().replace('_', '.')
+                     for arg in self.signal.providing_args))
 
 
 class Action(Enum):
@@ -111,11 +107,24 @@ class Action(Enum):
 
 
 class ModelObserver(BaseObserver):
+    def __init__(self,
+                 func,
+                 model_cls: Type[Model],
+                 group_name_prefix=None,
+                 group_names_func=None,
+                 serializer_class=None,
+                 stream=None,
+                 **kwargs):
 
-    def __init__(self, func, model_cls: Type[Model], **kwargs):
         super().__init__(func)
+
         self._model_cls = None
         self.model_cls = model_cls  # type: Type[Model]
+
+        self.group_name_prefix = group_name_prefix
+        self.group_names_func = group_names_func
+        self.serializer_class = serializer_class
+        self.stream = stream
 
     @property
     def model_cls(self) -> Type[Model]:
@@ -133,37 +142,33 @@ class ModelObserver(BaseObserver):
         pre_save.connect(
             self.pre_save_receiver,
             sender=self.model_cls,
-            dispatch_uid=id(self)
-        )
+            dispatch_uid=id(self))
         post_save.connect(
             self.post_save_receiver,
             sender=self.model_cls,
-            dispatch_uid=id(self)
-        )
-        pre_delete.connect(self.pre_delete_receiver, sender=self.model_cls, dispatch_uid=id(self))
-        post_delete.connect(self.post_delete_receiver, sender=self.model_cls, dispatch_uid=id(self))
+            dispatch_uid=id(self))
+        pre_delete.connect(
+            self.pre_delete_receiver,
+            sender=self.model_cls,
+            dispatch_uid=id(self))
+        post_delete.connect(
+            self.post_delete_receiver,
+            sender=self.model_cls,
+            dispatch_uid=id(self))
 
     def pre_save_receiver(self, instance: Model, **kwargs):
         creating = instance._state.adding
 
-        self.pre_change_receiver(
-            instance,
-            Action.CREATE if creating else Action.UPDATE
-        )
+        self.pre_change_receiver(instance,
+                                 Action.CREATE if creating else Action.UPDATE)
 
     def post_save_receiver(self, instance: Model, created: bool, **kwargs):
         self.post_change_receiver(
-            instance,
-            Action.CREATE if created else Action.UPDATE,
-            **kwargs
-        )
+            instance, Action.CREATE if created else Action.UPDATE, **kwargs)
 
     def pre_delete_receiver(self, instance: Model, **kwargs):
 
-        self.pre_change_receiver(
-            instance,
-            Action.DELETE
-        )
+        self.pre_change_receiver(instance, Action.DELETE)
 
     def post_delete_receiver(self, instance: Model, **kwargs):
         self.post_change_receiver(instance, Action.DELETE, **kwargs)
@@ -203,56 +208,38 @@ class ModelObserver(BaseObserver):
         # if post delete, new_group_names should be []
 
         # Django DDP had used the ordering of DELETE, UPDATE then CREATE for good reasons.
-        self.send_messages(
-            instance,
-            old_group_names - new_group_names,
-            Action.DELETE,
-            **kwargs
-        )
+        self.send_messages(instance, old_group_names - new_group_names,
+                           Action.DELETE, **kwargs)
         # the object has been updated so that its groups are not the same.
-        self.send_messages(
-            instance,
-            old_group_names & new_group_names,
-            Action.UPDATE,
-            **kwargs
-        )
+        self.send_messages(instance, old_group_names & new_group_names,
+                           Action.UPDATE, **kwargs)
 
         #
-        self.send_messages(
-            instance,
-            new_group_names - old_group_names,
-            Action.CREATE,
-            **kwargs
-        )
+        self.send_messages(instance, new_group_names - old_group_names,
+                           Action.CREATE, **kwargs)
 
-    def send_messages(self,
-                      instance: Model,
-                      group_names: Set[str],
+    def send_messages(self, instance: Model, group_names: Set[str],
                       action: Action, **kwargs):
         if not group_names:
             return
         message = self.serialize(instance, action, **kwargs)
+
+        if 'pk' in message and isinstance(message['pk'], uuid.UUID):
+            message['pk'] = str(message['pk'])
+
         channel_layer = get_channel_layer()
+
         for group_name in group_names:
             async_to_sync(channel_layer.group_send)(group_name, message)
 
     def group_names(self, *args, **kwargs):
+
         if self._group_names:
-            for group in self._group_names(self, *args, **kwargs):
-                yield '{}-{}'.format(self._uuid, group)
+            for group_name in self._group_names(self, *args, **kwargs):
+                yield group_name
             return
 
-        model_label = '{}.{}'.format(
-            self.model_cls._meta.app_label.lower(),
-            self.model_cls._meta.object_name.lower()
-        ).lower().replace('_', '.')
-
-        # one channel for all updates.
-        yield '{}-{}-model-{}'.format(
-            self._uuid,
-            self.func.__name__.replace('_', '.'),
-            model_label,
-        )
+        yield self.group_name_prefix
 
     def serialize(self, instance, action, **kwargs) -> Dict[str, Any]:
         message = {}

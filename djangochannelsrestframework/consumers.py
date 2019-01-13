@@ -43,8 +43,8 @@ def ensure_async(method: typing.Callable):
     return database_sync_to_async(method)
 
 
-class AsyncAPIConsumer(AsyncJsonWebsocketConsumer,
-                       metaclass=APIConsumerMetaclass):
+class AsyncAPIConsumer(
+        AsyncJsonWebsocketConsumer, metaclass=APIConsumerMetaclass):
     """
     Be very inspired by django rest framework ViewSets
     """
@@ -67,10 +67,7 @@ class AsyncAPIConsumer(AsyncJsonWebsocketConsumer,
             self.groups = set(self.groups)
 
         if name not in self.groups:
-            await self.channel_layer.group_add(
-                name,
-                self.channel_name
-            )
+            await self.channel_layer.group_add(name, self.channel_name)
             self.groups.add(name)
 
     async def remove_group(self, name: str):
@@ -78,10 +75,7 @@ class AsyncAPIConsumer(AsyncJsonWebsocketConsumer,
             self.groups = set(self.groups)
 
         if name in self.groups:
-            await self.channel_layer.group_discard(
-                name,
-                self.channel_name
-            )
+            await self.channel_layer.group_discard(name, self.channel_name)
             self.groups.remove(name)
 
     async def get_permissions(self, action: str, **kwargs):
@@ -110,15 +104,13 @@ class AsyncAPIConsumer(AsyncJsonWebsocketConsumer,
                 action=action,
                 errors=self._format_errors(exc.detail),
                 status=exc.status_code,
-                request_id=request_id
-            )
+                request_id=request_id)
         elif exc == Http404 or isinstance(exc, Http404):
             await self.reply(
                 action=action,
                 errors=self._format_errors('Not found'),
                 status=404,
-                request_id=request_id
-            )
+                request_id=request_id)
         else:
             raise exc
 
@@ -148,31 +140,22 @@ class AsyncAPIConsumer(AsyncJsonWebsocketConsumer,
             # the @action decorator will wrap non-async action into async ones.
 
             response = await method(
-                request_id=request_id,
-                action=action,
-                **kwargs
-            )
+                request_id=request_id, action=action, **kwargs)
 
             if isinstance(response, tuple):
                 data, status = response
-                await reply(
-                    data=data,
-                    status=status
-                )
+                await reply(data=data, status=status)
 
         except Exception as exc:
             await self.handle_exception(
-                exc,
-                action=action,
-                request_id=request_id
-            )
+                exc, action=action, request_id=request_id)
 
     async def receive_json(self, content: typing.Dict, **kwargs):
         """
         Called with decoded JSON content.
         """
         # TODO assert format, if does not match return message.
-        request_id = content.pop('request_id')
+        request_id = content.pop('request_id', 1)
         action = content.pop('action')
         await self.handle_action(action, request_id=request_id, **content)
 
@@ -194,9 +177,7 @@ class AsyncAPIConsumer(AsyncJsonWebsocketConsumer,
             'request_id': request_id,
         }
 
-        await self.send_json(
-            payload
-        )
+        await self.send_json(payload)
 
 
 class DjangoViewAsConsumer(AsyncAPIConsumer):
@@ -215,7 +196,7 @@ class DjangoViewAsConsumer(AsyncAPIConsumer):
         Called with decoded JSON content.
         """
         # TODO assert format, if does not match return message.
-        request_id = content.pop('request_id')
+        request_id = content.pop('request_id', 1)
         action = content.pop('action')
         await self.handle_action(action, request_id=request_id, **content)
 
@@ -229,29 +210,20 @@ class DjangoViewAsConsumer(AsyncAPIConsumer):
             if action not in self.actions:
                 raise MethodNotAllowed(method=action)
 
-            content, status = await self.call_view(
-                action=action,
-                **kwargs
-            )
+            content, status = await self.call_view(action=action, **kwargs)
 
             await self.reply(
                 action=action,
                 request_id=request_id,
                 data=content,
-                status=status
-            )
+                status=status)
 
         except Exception as exc:
             await self.handle_exception(
-                exc,
-                action=action,
-                request_id=request_id
-            )
+                exc, action=action, request_id=request_id)
 
     @database_sync_to_async
-    def call_view(self,
-                  action: str,
-                  **kwargs):
+    def call_view(self, action: str, **kwargs):
 
         request = HttpRequest()
         request.path = self.scope.get('path')
@@ -302,9 +274,8 @@ class DjangoViewAsConsumer(AsyncAPIConsumer):
 
 def view_as_consumer(
         wrapped_view: typing.Callable[[HttpRequest], HttpResponse],
-        mapped_actions: typing.Optional[
-            typing.Dict[str, str]
-        ]=None) -> Type[AsyncConsumer]:
+        mapped_actions: typing.Optional[typing.Dict[str, str]] = None
+) -> Type[AsyncConsumer]:
     """
     Wrap a django View so that it will be triggered by actions over this json
      websocket consumer.
