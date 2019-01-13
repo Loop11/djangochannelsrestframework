@@ -4,7 +4,6 @@ from .decorators import action
 
 
 class CreateModelMixin:
-
     @action()
     def create(self, data, **kwargs):
 
@@ -15,9 +14,8 @@ class CreateModelMixin:
         data = serializer.data
 
         data['__pk'] = str(instance.pk)
-        data['__model'] = "%s.%s" % (
-            instance._meta.app_label.lower(),
-            instance._meta.object_name.lower()
+        data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
+                                     instance._meta.object_name.lower())
 
         return data, status.HTTP_201_CREATED
 
@@ -26,42 +24,30 @@ class CreateModelMixin:
 
 
 class ListModelMixin:
-
     @action()
     def list(self, **kwargs):
-        queryset = self.filter_queryset(
-            self.get_queryset(**kwargs),
-            **kwargs
-        )
+        queryset = self.filter_queryset(self.get_queryset(**kwargs), **kwargs)
         serializer = self.get_serializer(
-            instance=queryset,
-            many=True,
-            action_kwargs=kwargs
-        )
+            instance=queryset, many=True, action_kwargs=kwargs)
         return serializer.data, status.HTTP_200_OK
 
 
 class RetrieveModelMixin:
-
     @action()
-    def retrieve(self,**kwargs):
+    def retrieve(self, **kwargs):
         instance = self.get_object(**kwargs)
-        serializer = self.get_serializer(instance=instance, action_kwargs=kwargs)
+        serializer = self.get_serializer(
+            instance=instance, action_kwargs=kwargs)
         return serializer.data, status.HTTP_200_OK
 
 
 class UpdateModelMixin:
-
     @action()
     def update(self, data, **kwargs):
         instance = self.get_object(data=data, **kwargs)
 
         serializer = self.get_serializer(
-            instance=instance,
-            data=data,
-            action_kwargs=kwargs,
-            partial=False
-        )
+            instance=instance, data=data, action_kwargs=kwargs, partial=False)
 
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer, **kwargs)
@@ -72,11 +58,9 @@ class UpdateModelMixin:
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
-
         data['__pk'] = str(instance.pk)
-        data['__model'] = "%s.%s" % (
-            instance._meta.app_label.lower(),
-            instance._meta.object_name.lower())
+        data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
+                                     instance._meta.object_name.lower())
 
         return data, status.HTTP_200_OK
 
@@ -85,17 +69,12 @@ class UpdateModelMixin:
 
 
 class PatchModelMixin:
-
     @action()
     def patch(self, data, **kwargs):
         instance = self.get_object(data=data, **kwargs)
 
         serializer = self.get_serializer(
-            instance=instance,
-            data=data,
-            action_kwargs=kwargs,
-            partial=True
-        )
+            instance=instance, data=data, action_kwargs=kwargs, partial=True)
 
         serializer.is_valid(raise_exception=True)
         self.perform_patch(serializer, **kwargs)
@@ -112,25 +91,19 @@ class PatchModelMixin:
 
 
 class DeleteModelMixin:
-
     @action()
-    def delete(self,**kwargs):
+    def delete(self, **kwargs):
 
         instance = self.get_object(**kwargs)
 
         serializer = self.get_serializer(
-            instance=instance,
-            data=data,
-            action_kwargs=kwargs,
-            partial=False
-        )
+            instance=instance, data=data, action_kwargs=kwargs, partial=False)
 
         # Return some data of what was
         data = serializer.data
         data['__pk'] = str(instance.pk)
-        data['__model'] = "%s.%s" % (
-            instance._meta.app_label.lower(),
-            instance._meta.object_name.lower())
+        data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
+                                     instance._meta.object_name.lower())
 
         instance.delete()
 
