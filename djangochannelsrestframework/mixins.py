@@ -13,14 +13,17 @@ class CreateModelMixin:
         instance = self.perform_create(serializer, **kwargs)
         data = serializer.data
 
-        data['__pk'] = str(instance.pk)
+        if hasattr(instance, 'uueid'):
+            data['__uuid'] = str(instance.uuid)
+        if hasattr(instance, 'id'):
+            data['__id'] = str(instance.uuid)
         data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
                                      instance._meta.object_name.lower())
 
         return data, status.HTTP_201_CREATED
 
     def perform_create(self, serializer, **kwargs):
-        serializer.save()
+        return serializer.save()
 
 
 class ListModelMixin:
@@ -50,7 +53,7 @@ class UpdateModelMixin:
             instance=instance, data=data, action_kwargs=kwargs, partial=False)
 
         serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer, **kwargs)
+        instance = self.perform_update(serializer, **kwargs)
         data = serializer.data
 
         if getattr(instance, '_prefetched_objects_cache', None):
@@ -58,14 +61,17 @@ class UpdateModelMixin:
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
-        data['__pk'] = str(instance.pk)
+        if hasattr(instance, 'uueid'):
+            data['__uuid'] = str(instance.uuid)
+        if hasattr(instance, 'id'):
+            data['__id'] = str(instance.uuid)
         data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
                                      instance._meta.object_name.lower())
 
         return data, status.HTTP_200_OK
 
     def perform_update(self, serializer, **kwargs):
-        serializer.save()
+        return serializer.save()
 
 
 class PatchModelMixin:
@@ -101,7 +107,10 @@ class DeleteModelMixin:
 
         # Return some data of what was
         data = serializer.data
-        data['__pk'] = str(instance.pk)
+        if hasattr(instance, 'uueid'):
+            data['__uuid'] = str(instance.uuid)
+        if hasattr(instance, 'id'):
+            data['__id'] = str(instance.uuid)
         data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
                                      instance._meta.object_name.lower())
 
