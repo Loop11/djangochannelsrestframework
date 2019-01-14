@@ -13,7 +13,7 @@ class CreateModelMixin:
         instance = self.perform_create(serializer, **kwargs)
         data = serializer.data
 
-        if hasattr(instance, 'uueid'):
+        if hasattr(instance, 'uuid'):
             data['__uuid'] = str(instance.uuid)
         if hasattr(instance, 'id'):
             data['__id'] = str(instance.uuid)
@@ -41,6 +41,16 @@ class RetrieveModelMixin:
         instance = self.get_object(**kwargs)
         serializer = self.get_serializer(
             instance=instance, action_kwargs=kwargs)
+
+        data = serializer.data
+
+        if hasattr(instance, 'uuid'):
+            data['__uuid'] = str(instance.uuid)
+        if hasattr(instance, 'id'):
+            data['__id'] = str(instance.uuid)
+        data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
+                                     instance._meta.object_name.lower())
+
         return serializer.data, status.HTTP_200_OK
 
 
@@ -61,7 +71,7 @@ class UpdateModelMixin:
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
-        if hasattr(instance, 'uueid'):
+        if hasattr(instance, 'uuid'):
             data['__uuid'] = str(instance.uuid)
         if hasattr(instance, 'id'):
             data['__id'] = str(instance.uuid)
@@ -107,7 +117,7 @@ class DeleteModelMixin:
 
         # Return some data of what was
         data = serializer.data
-        if hasattr(instance, 'uueid'):
+        if hasattr(instance, 'uuid'):
             data['__uuid'] = str(instance.uuid)
         if hasattr(instance, 'id'):
             data['__id'] = str(instance.uuid)
