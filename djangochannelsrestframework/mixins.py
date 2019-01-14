@@ -46,8 +46,7 @@ class RetrieveModelMixin:
 
         if hasattr(instance, 'uuid'):
             data['__uuid'] = str(instance.uuid)
-        if hasattr(instance, 'id'):
-            data['__id'] = str(instance.uuid)
+        data['__pk'] = str(instance.pk)
         data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
                                      instance._meta.object_name.lower())
 
@@ -73,8 +72,7 @@ class UpdateModelMixin:
 
         if hasattr(instance, 'uuid'):
             data['__uuid'] = str(instance.uuid)
-        if hasattr(instance, 'id'):
-            data['__id'] = str(instance.uuid)
+        data['__pk'] = str(instance.pk)
         data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
                                      instance._meta.object_name.lower())
 
@@ -119,8 +117,7 @@ class DeleteModelMixin:
         data = serializer.data
         if hasattr(instance, 'uuid'):
             data['__uuid'] = str(instance.uuid)
-        if hasattr(instance, 'id'):
-            data['__id'] = str(instance.uuid)
+        data['__pk'] = str(instance.pk)
         data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
                                      instance._meta.object_name.lower())
 
