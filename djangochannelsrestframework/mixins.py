@@ -3,6 +3,23 @@ from rest_framework import status
 from .decorators import action
 
 
+def patch_data(data, instance):
+
+    if hasattr(instance, 'pk'):
+        data['__pk'] = str(instance.pk)
+
+    if hasattr(instance, 'uuid'):
+        data['__uuid'] = str(instance.uuid)
+
+    if hasattr(instance, 'id'):
+        data['__id'] = str(instance.id)
+
+    data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
+                                 instance._meta.object_name.lower())
+
+    return data
+
+
 class CreateModelMixin:
     @action()
     def create(self, data, **kwargs):
@@ -11,14 +28,8 @@ class CreateModelMixin:
         serializer.is_valid(raise_exception=True)
 
         instance = self.perform_create(serializer, **kwargs)
-        data = serializer.data
 
-        if hasattr(instance, 'uuid'):
-            data['__uuid'] = str(instance.uuid)
-        if hasattr(instance, 'id'):
-            data['__id'] = str(instance.uuid)
-        data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
-                                     instance._meta.object_name.lower())
+        data = patch_data(serializer.data, instance)
 
         return data, status.HTTP_201_CREATED
 
@@ -42,13 +53,7 @@ class RetrieveModelMixin:
         serializer = self.get_serializer(
             instance=instance, action_kwargs=kwargs)
 
-        data = serializer.data
-
-        if hasattr(instance, 'uuid'):
-            data['__uuid'] = str(instance.uuid)
-        data['__pk'] = str(instance.pk)
-        data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
-                                     instance._meta.object_name.lower())
+        data = patch_data(serializer.data, instance)
 
         return serializer.data, status.HTTP_200_OK
 
@@ -70,11 +75,7 @@ class UpdateModelMixin:
             # forcibly invalidate the prefetch cache on the instance.
             instance._prefetched_objects_cache = {}
 
-        if hasattr(instance, 'uuid'):
-            data['__uuid'] = str(instance.uuid)
-        data['__pk'] = str(instance.pk)
-        data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
-                                     instance._meta.object_name.lower())
+        data = patch_data(serializer.data, instance)
 
         return data, status.HTTP_200_OK
 
@@ -113,14 +114,7 @@ class DeleteModelMixin:
         serializer = self.get_serializer(
             instance=instance, data=data, action_kwargs=kwargs, partial=False)
 
-        # Return some data of what was
-        data = serializer.data
-        if hasattr(instance, 'uuid'):
-            data['__uuid'] = str(instance.uuid)
-        data['__pk'] = str(instance.pk)
-        data['__model'] = "%s.%s" % (instance._meta.app_label.lower(),
-                                     instance._meta.object_name.lower())
-
+        data = patch_data(serializer.data, instance)
         instance.delete()
 
         return data, status.HTTP_200_OK
